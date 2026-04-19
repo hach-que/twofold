@@ -240,6 +240,7 @@ export class ActionRequest {
       {
         type: "action",
         request: this.#request,
+        authCache: getStore().authCache,
       },
     );
     if (!authResponse.__allow) {

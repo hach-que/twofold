@@ -1,5 +1,6 @@
 import { API } from "../build/rsc/api.js";
 import { Runtime } from "../runtime.js";
+import { getStore } from "../stores/rsc-store.js";
 import {
   evaluatePolicyArray,
   evaluatePolicyArrayToResponse,
@@ -48,6 +49,7 @@ export class APIRequest {
       {
         type: "api",
         request: this.#request,
+        authCache: getStore().authCache,
       },
       async (error) => {
         if (isNotFoundError(error)) {

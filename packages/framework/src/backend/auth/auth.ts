@@ -6,14 +6,17 @@ export type AuthPolicyProps =
       type: "page";
       request: Request;
       routeParams: Record<string, string | undefined>;
+      authCache: Map<string, unknown>;
     }
   | {
       type: "action";
       request: Request;
+      authCache: Map<string, unknown>;
     }
   | {
       type: "api";
       request: Request;
+      authCache: Map<string, unknown>;
     };
 
 /**

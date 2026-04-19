@@ -23,7 +23,11 @@ import { redirect } from "@twofold/framework/redirect";
  */
 export async function allowIfCookieSet({
   request,
+  authCache,
 }: AuthPolicyProps): Promise<AuthPolicyResult> {
+  // Example of storing a value into the auth cache.
+  authCache.set("profile", { value: "hello world" });
+
   // This is an example of an auth policy that changes it's behaviour based on the request.
   if (cookies.get("allow-access") === "true") {
     return allow();
@@ -34,7 +38,21 @@ export async function allowIfCookieSet({
 
 export async function behaveBasedOnQueryString({
   request,
+  authCache,
 }: AuthPolicyProps): Promise<AuthPolicyResult> {
+  // Example of retrieving a value from the auth cache (from a previous policy) and then modifying it.
+  const profile = authCache.get("profile");
+  if (
+    typeof profile === "object" &&
+    profile !== null &&
+    "value" in profile &&
+    typeof profile.value === "string"
+  ) {
+    authCache.set("profile", {
+      value: `profile value amended, original '${profile.value}'`,
+    });
+  }
+
   // This policy changes it's behaviour based on the query string, and is used for the protected/ content under this app (in addition to the other policies here).
   const url = new URL(request.url);
   switch (url.searchParams.get("auth-behaviour")) {

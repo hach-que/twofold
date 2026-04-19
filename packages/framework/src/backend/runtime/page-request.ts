@@ -60,6 +60,7 @@ export class PageRequest {
           type: "page",
           request: this.#request,
           routeParams: this.dynamicParams,
+          authCache: getStore().authCache,
         },
         async (error) => {
           if (isNotFoundError(error)) {
