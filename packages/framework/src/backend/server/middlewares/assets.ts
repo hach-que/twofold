@@ -22,6 +22,34 @@ export function assets(build: Build): RouteHandler {
       let id = pathname.replace(/^\/__tf\/assets\//, "");
       let asset = build.getBuilder("assets").assetMap.get(id);
 
+      if (!asset && id.endsWith(".map")) {
+        asset = build
+          .getBuilder("assets")
+          .assetMap.get(id.substring(0, id.length - 4));
+        if (asset) {
+          const isProd = process.env.NODE_ENV === "production";
+          if (isProd) {
+            return new Response("", {
+              status: 404,
+            });
+          } else {
+            let statResult = await stat(asset.assetPath + ".map");
+            let contentStream = createReadStream(asset.assetPath + ".map");
+            let webStream = Readable.toWeb(contentStream);
+
+            let headers = new Headers({
+              "Content-Type": "application/json",
+              "Content-Length": statResult.size.toString(),
+              "Cache-Control": cacheControlHeader,
+            });
+
+            return new Response(webStream as ReadableStream, {
+              headers,
+            });
+          }
+        }
+      }
+
       if (asset) {
         let encodings = parseHeaderValue(
           request.headers.get("accept-encoding"),

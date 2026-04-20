@@ -1,4 +1,45 @@
-import { useEffect } from "react";
+import { ReactNode, use, useEffect } from "react";
+import StackTrace from "stacktrace-js";
+import { Suspense } from "react";
+
+export function ErrorRendererLoaded(props: {
+  error: Error;
+  stacktrace: Promise<StackTrace.StackFrame[]>;
+}) {
+  const stacktrace = use(props.stacktrace);
+
+  const lines: ReactNode[] = [];
+  for (const frame of stacktrace) {
+    const url = new URL(frame.getFileName());
+    const line = `${frame.getFunctionName()} @ ${decodeURI(frame.getFileName())}:${frame.getLineNumber()}:${frame.getColumnNumber()}\n`;
+    if (url.pathname.startsWith("/__tf/")) {
+      lines.push(<span style={{ opacity: "40%" }}>{line}</span>);
+    } else {
+      lines.push(line);
+    }
+  }
+
+  return (
+    <>
+      <p className="text-red-500 text-xl">{props.error.message}</p>
+      <pre className="mt-6 overflow-x-scroll pr-6 -mr-6 text-sm">{lines}</pre>
+    </>
+  );
+}
+
+export function ErrorRenderer({ error }: { error: Error }) {
+  const stacktrace = StackTrace.fromError(error);
+
+  return (
+    <Suspense
+      fallback={
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+      }
+    >
+      <ErrorRendererLoaded error={error} stacktrace={stacktrace} />
+    </Suspense>
+  );
+}
 
 export function ErrorViewer({ error }: { error: unknown }) {
   return (
@@ -10,12 +51,7 @@ export function ErrorViewer({ error }: { error: unknown }) {
           </div>
           <div className="mt-6">
             {error instanceof Error ? (
-              <>
-                <p className="text-red-500 text-xl">{error.message}</p>
-                <pre className="mt-6 overflow-x-scroll pr-6 -mr-6 text-sm">
-                  {error.stack}
-                </pre>
-              </>
+              <ErrorRenderer error={error} />
             ) : (
               <p className="text-red-500 text-xl">Unknown error</p>
             )}

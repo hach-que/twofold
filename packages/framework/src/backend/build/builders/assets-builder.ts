@@ -7,6 +7,7 @@ import { createReadStream, createWriteStream } from "fs";
 import { createBrotliCompress } from "zlib";
 import { basename } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
+import { fileExists } from "../helpers/file.js";
 
 type Asset = {
   id: string;

@@ -248,7 +248,9 @@ export abstract class Build {
     let builderKeys = Object.keys(data.builders);
     builderKeys.forEach((key) => {
       let name = data.builders[key].name;
-      this.getBuilder(name).load(data.builders[key]);
+      if (this.builders[name] !== undefined) {
+        this.getBuilder(name).load(data.builders[key]);
+      }
     });
 
     // mark as built

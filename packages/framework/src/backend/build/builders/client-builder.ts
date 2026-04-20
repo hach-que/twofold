@@ -223,6 +223,8 @@ export class ClientBuilder extends Builder {
           format: "esm",
           cleanDir: true,
 
+          sourcemap: true,
+
           advancedChunks: {
             groups: [
               {
