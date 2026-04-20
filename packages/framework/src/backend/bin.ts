@@ -42,14 +42,16 @@ program
     "Port to run the development server on",
     "3000",
   )
+  .option("-h, --https", "Enable HTTPS", false)
   .description("Run the development server")
   .action(async (options) => {
     let build =
       nodeEnv === "production" ? new ProductionBuild() : new DevelopmentBuild();
 
     let port = parseInt(options.port, 10) || 3000;
+    let https = typeof options.https === "boolean" ? options.https : false;
 
-    let task = new DevTask({ build, port });
+    let task = new DevTask({ build, port, https });
     task.start();
   });
 

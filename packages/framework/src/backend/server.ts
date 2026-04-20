@@ -1,5 +1,9 @@
 import "./monkey-patch.js";
-import { createServer } from "@hattip/adapter-node/native-fetch";
+import {
+  createServer as createHttpServer,
+  createMiddleware,
+} from "@hattip/adapter-node/native-fetch";
+import { createServer as createHttpsServer } from "node:https";
 import { parseHeaderValue } from "@hattip/headers";
 import { createRouter } from "@hattip/router";
 import { cookie } from "@hattip/cookie";
@@ -13,12 +17,20 @@ import { requestStore } from "./server/middlewares/request-store.js";
 import { waitForBuild } from "./server/middlewares/wait-for-build.js";
 import { waitForSSR } from "./server/middlewares/wait-for-ssr-worker.js";
 import { Server as NodeHttpServer } from "http";
+import { Server as NodeHttpsServer } from "https";
 import { Runtime } from "./runtime.js";
 import { filterRequests } from "./server/middlewares/filter-requests.js";
 import { gzip } from "./server/middlewares/gzip.js";
 import kleur from "kleur";
 import { Socket } from "net";
 import { ProxyingRequest } from "./proxying-request.js";
+import { createCA, createCert } from "mkcert";
+import { fileExists } from "./build/helpers/file.js";
+import path from "node:path";
+import { appCompiledDir } from "./files.js";
+import { Certificate } from "node:crypto";
+import { readFileSync, writeFileSync } from "node:fs";
+import { homedir, platform } from "node:os";
 
 async function createHandler(server: Server) {
   let runtime = server.runtime;
@@ -247,24 +259,33 @@ function log(
 type Options = {
   hostname: string;
   port: number;
+  https?: boolean;
 };
+
+interface SavedCertificate {
+  key: string;
+  cert: string;
+  ca: string;
+}
 
 export class Server {
   #hostname: string;
   #port: number;
   #runtime: Runtime;
-  #server: NodeHttpServer | undefined;
+  #server: NodeHttpServer | NodeHttpsServer | undefined;
   #activeSockets: Map<Socket, number> | undefined;
+  #https: boolean;
 
   constructor(runtime: Runtime, options: Options) {
     this.#runtime = runtime;
     this.#hostname = options.hostname;
     this.#port = options.port;
+    this.#https = options.https || false;
   }
 
   get baseUrl() {
     let domain = this.hostname === "0.0.0.0" ? "localhost" : this.hostname;
-    return `http://${domain}:${this.port}`;
+    return `${this.#https ? "https" : "http"}://${domain}:${this.port}`;
   }
 
   get hostname() {
@@ -288,9 +309,42 @@ export class Server {
       let handler = await createHandler(this);
       let config = await this.build.getAppConfig();
 
-      let server = createServer(handler, {
+      let adapterOptions = {
         trustProxy: config.trustProxy ?? false,
-      });
+      };
+      let server: NodeHttpServer | NodeHttpsServer;
+      if (this.#https) {
+        let httpsCertPath = path.join(homedir(), "twofold-localhost-cert.json");
+        let httpsCert: SavedCertificate;
+        if (await fileExists(httpsCertPath)) {
+          httpsCert = JSON.parse(readFileSync(httpsCertPath, "utf8"));
+        } else {
+          const ca = await createCA({
+            organization: "Twofold",
+            countryCode: "US",
+            state: "NA",
+            locality: "NA",
+            validity: 3650,
+          });
+          const cert = await createCert({
+            ca: { key: ca.key, cert: ca.cert },
+            domains: ["127.0.0.1", "localhost"],
+            validity: 3650,
+          });
+          httpsCert = {
+            key: cert.key,
+            cert: cert.cert,
+            ca: ca.cert,
+          };
+          writeFileSync(httpsCertPath, JSON.stringify(httpsCert));
+        }
+        server = createHttpsServer(
+          httpsCert,
+          createMiddleware(handler, adapterOptions),
+        );
+      } else {
+        server = createHttpServer(handler, adapterOptions);
+      }
 
       let activeSockets = new Map();
 

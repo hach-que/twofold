@@ -14,12 +14,21 @@ export class DevTask {
   #runtime: Runtime;
   #server: Server;
 
-  constructor({ build, port }: { build: Build; port: number }) {
+  constructor({
+    build,
+    port,
+    https,
+  }: {
+    build: Build;
+    port: number;
+    https: boolean;
+  }) {
     this.#build = build;
     this.#runtime = new Runtime(build);
     this.#server = new Server(this.#runtime, {
       hostname: "0.0.0.0",
       port,
+      https,
     });
   }
 
