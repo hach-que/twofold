@@ -1,6 +1,8 @@
 // these types are importable by the application
 
 import type { ReactNode } from "react";
+import type { NodeOptions } from "@sentry/node";
+import type { BrowserOptions } from "@sentry/react";
 
 export type PageProps<T extends string | never = never> = {
   params: Record<T, string>;
@@ -34,4 +36,7 @@ export type Config = {
   bundlePackages?: string[];
   reactCompiler?: boolean;
   trustProxy?: boolean;
+  sentryOptions?: NodeOptions;
+  sentryBrowserOptions?: BrowserOptions;
+  sentryUploadSourcemaps?: boolean;
 };

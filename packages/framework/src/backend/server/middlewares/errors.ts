@@ -8,11 +8,16 @@ import {
   renderToReadableStream,
   // @ts-expect-error: TypeScript cannot find type declarations for this module
 } from "react-server-dom-webpack/server.edge";
+import * as Sentry from "@sentry/node";
 
 export function errors(build: Build): RouteHandler {
   return async (ctx) => {
     ctx.handleError = async (e: unknown) => {
       let request = ctx.request;
+
+      if (Sentry.isEnabled()) {
+        Sentry.captureException(e);
+      }
 
       let accepts = parseHeaderValue(request.headers.get("accept"));
       let isRSCFetch = accepts.some((a) => a.value === "text/x-component");
@@ -40,11 +45,25 @@ export function errors(build: Build): RouteHandler {
           },
           {},
         );
+        let headers: HeadersInit = {
+          "content-type": "text/x-component",
+        };
+        if (
+          error instanceof Error &&
+          "digest" in error &&
+          typeof error.digest === "string"
+        ) {
+          // provide the digest ID as a header, since React will omit it when serializing the error in the RSC stream
+          headers["x-twofold-error-digest"] = error.digest;
+        } else {
+          let sentryTraceId = Sentry.getActiveSpan()?.spanContext().traceId;
+          if (sentryTraceId) {
+            headers["x-twofold-error-digest"] = sentryTraceId;
+          }
+        }
         return new Response(stream, {
           status,
-          headers: {
-            "content-type": "text/x-component",
-          },
+          headers: headers,
         });
       } else if (isHTMLFetch) {
         let html = await errorPage(error);
@@ -115,12 +134,13 @@ export async function errorPage(error: Error) {
     "digest" in error &&
     typeof error.digest === "string"
       ? error.digest
-      : "";
+      : (Sentry.getActiveSpan()?.spanContext().traceId ?? "");
 
   let html = contents
     .replace("$error", serializedError)
     .replace("$message", message)
     .replace("$stack", stack)
+    .replace("$digest-class", digest ? "" : "hidden")
     .replace("$digest", digest);
 
   return html;

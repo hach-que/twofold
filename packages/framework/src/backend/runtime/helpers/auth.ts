@@ -30,8 +30,7 @@ export async function evaluatePolicyArray(
     ) {
       authPolicyArrays.push(await current.getAuthPolicy());
     } else if (!current) {
-      console.error(current);
-      throw new Error(`Unsupported parent`);
+      throw new Error(`Unsupported parent in evaluatePolicyArray`);
     }
     current = current.parent;
   }

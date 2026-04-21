@@ -1,4 +1,5 @@
 import "../monkey-patch.js";
+import "../sentry-instrument.js";
 import {
   MessagePort,
   parentPort,
@@ -12,6 +13,8 @@ import { pageSSR } from "./page-ssr.js";
 import { combineBatch, createBatchStream } from "../steams/batch-stream.js";
 import { ReactDOMServerReadableStream } from "react-dom/server";
 import { invariant } from "../utils/invariant.js";
+import * as Sentry from "@sentry/node";
+import type { BrowserOptions } from "@sentry/react";
 
 if (!parentPort) {
   throw new Error("Must be run as a worker");
@@ -23,6 +26,9 @@ export type RenderRequest = {
   mode: "page";
   data: {
     urlString: string;
+    sentryBrowserOptions: BrowserOptions | undefined;
+    sentryTrace: string | undefined;
+    sentryBaggage: string | undefined;
   };
 };
 
@@ -94,6 +100,8 @@ parentPort.on("message", async (request: RenderRequest) => {
 
   let didFail = false;
   function fail(error: unknown) {
+    Sentry.captureException(error);
+
     if (!didFail) {
       didFail = true;
 
@@ -137,11 +145,44 @@ parentPort.on("message", async (request: RenderRequest) => {
 
   try {
     if (request.mode === "page") {
-      htmlStream = await pageSSR({
-        ...request,
-        rscStream,
-        signal: htmlAbortController.signal,
-      });
+      const getHtmlStream = async () => {
+        return await pageSSR({
+          ...request,
+          rscStream,
+          signal: htmlAbortController.signal,
+          sentryBrowserOptions: request.data.sentryBrowserOptions,
+          sentryTrace: request.data.sentryTrace,
+          sentryBaggage: request.data.sentryBaggage,
+          captureException: (err) => {
+            if (Sentry.isEnabled()) {
+              Sentry.captureException(err);
+              return true;
+            } else {
+              return false;
+            }
+          },
+        });
+      };
+      if (request.data.sentryTrace && request.data.sentryBaggage) {
+        await Sentry.continueTrace(
+          {
+            sentryTrace: request.data.sentryTrace,
+            baggage: request.data.sentryBaggage,
+          },
+          async () => {
+            await Sentry.startSpan(
+              {
+                name: "ssr-html-stream",
+              },
+              async () => {
+                htmlStream = await getHtmlStream();
+              },
+            );
+          },
+        );
+      } else {
+        htmlStream = await getHtmlStream();
+      }
     } else {
       throw new Error("Invalid mode");
     }

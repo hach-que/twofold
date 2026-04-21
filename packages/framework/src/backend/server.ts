@@ -31,6 +31,7 @@ import { appCompiledDir } from "./files.js";
 import { Certificate } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { homedir, platform } from "node:os";
+import * as Sentry from "@sentry/node";
 
 async function createHandler(server: Server) {
   let runtime = server.runtime;
@@ -68,6 +69,11 @@ async function createHandler(server: Server) {
 
     if (typeof path !== "string") {
       throw new Error("No path specified");
+    }
+
+    let activeSpan = Sentry.getActiveSpan();
+    if (activeSpan) {
+      Sentry.updateSpanName(activeSpan, "RSC " + path);
     }
 
     let requestUrl = new URL(path, url);
@@ -112,6 +118,11 @@ async function createHandler(server: Server) {
 
     let response = await actionRequest.rscResponse();
     let name = await actionRequest.name();
+
+    let activeSpan = Sentry.getActiveSpan();
+    if (activeSpan) {
+      Sentry.updateSpanName(activeSpan, "ACTION " + name);
+    }
 
     if (response.status === 404) {
       log("Not found", `Action ${name}`, "red");

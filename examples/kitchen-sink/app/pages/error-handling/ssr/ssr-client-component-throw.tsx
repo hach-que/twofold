@@ -3,7 +3,7 @@
 export default function SSRClientComponentThrow() {
   // simulate an error during the SSR phase
   if (typeof window === "undefined") {
-    throw new Error("Oh no!");
+    throw new Error("Oh no SSR!");
   }
 
   return <div>Did I render?</div>;

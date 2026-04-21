@@ -13,6 +13,8 @@ import EventEmitter from "events";
 import * as z from "zod";
 import { AssetsBuilder } from "../builders/assets-builder.js";
 import { ClientBuilder } from "../builders/client-builder.js";
+import { SentryCli } from "@sentry/cli";
+import path from "path";
 
 let jiti = createJiti(import.meta.url, {
   debug: false,
@@ -24,6 +26,9 @@ let configSchema = z.object({
   bundlePackages: z.array(z.string()).optional(),
   reactCompiler: z.boolean().optional(),
   trustProxy: z.boolean().optional(),
+  sentryOptions: z.any().optional(),
+  sentryBrowserOptions: z.any().optional(),
+  sentryUploadSourcemaps: z.boolean().optional(),
 });
 
 type Config = z.infer<typeof configSchema>;
@@ -55,6 +60,9 @@ export abstract class Build {
       bundlePackages: [],
       reactCompiler: false,
       trustProxy: false,
+      sentryOptions: undefined,
+      sentryBrowserOptions: undefined,
+      sentryUploadSourcemaps: undefined,
     };
 
     if (!this.#appConfig) {
@@ -186,6 +194,26 @@ export abstract class Build {
     let json = JSON.stringify(data, null, 2);
     let jsonUrl = new URL("./build.json", appCompiledDir);
     await writeFile(jsonUrl, json, "utf-8");
+
+    // check if Sentry upload should be enabled
+    let appConfig = await this.getAppConfig();
+    if (appConfig.sentryUploadSourcemaps === true) {
+      const cli = new SentryCli(null, {});
+      console.log("Injecting debug IDs into source maps ...");
+      await cli.sourceMaps.inject({
+        paths: [path.join(process.cwd(), ".twofold")],
+      });
+      console.log("Uploading source maps ...");
+      console.log(`Scanning: ${process.cwd()}`);
+      const releaseOptions =
+        process.env.SENTRY_RELEASE !== undefined
+          ? [`--release=${process.env.SENTRY_RELEASE}`]
+          : [];
+      await cli.sourceMaps.execute(
+        ["sourcemaps", "upload", ...releaseOptions, ".twofold"],
+        true,
+      );
+    }
   }
 
   private async serialize() {

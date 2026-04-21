@@ -1,11 +1,13 @@
 import { Component, ReactNode } from "react";
 import { DevErrorPage, ProdErrorPage } from "./error-pages";
+import * as Sentry from "@sentry/react";
 
 export class ErrorBoundary extends Component<
   { children?: ReactNode },
   {
     hasError: boolean;
     error: unknown;
+    capturedExceptionId?: string;
   }
 > {
   constructor(props: object) {
@@ -21,6 +23,12 @@ export class ErrorBoundary extends Component<
       error,
       hasError: true,
     };
+  }
+
+  componentDidCatch(error: unknown, errorInfo: any) {
+    this.setState({
+      capturedExceptionId: Sentry.captureReactException(error, errorInfo),
+    });
   }
 
   onPopState = (_event: PopStateEvent) => {
@@ -46,10 +54,25 @@ export class ErrorBoundary extends Component<
 
   render() {
     if (this.state.hasError) {
+      let error = this.state.error;
+      if (
+        typeof error === "object" &&
+        error !== undefined &&
+        error !== null &&
+        (!("digest" in error) || typeof error.digest !== "string")
+      ) {
+        let sentryTraceId = Sentry.getActiveSpan()?.spanContext().traceId;
+        if (sentryTraceId) {
+          (error as any).digest = this.state.capturedExceptionId;
+        } else if (this.state.capturedExceptionId) {
+          (error as any).digest = "ex-" + this.state.capturedExceptionId;
+        }
+      }
+
       return process.env.NODE_ENV === "production" ? (
-        <ProdErrorPage error={this.state.error} />
+        <ProdErrorPage error={error} />
       ) : (
-        <DevErrorPage error={this.state.error} />
+        <DevErrorPage error={error} />
       );
     }
 

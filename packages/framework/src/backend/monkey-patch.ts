@@ -10,6 +10,7 @@ declare global {
   var __webpack_chunk_load__: (chunkId: string) => Promise<any>;
   var __webpack_require__: (id: string) => any;
   var __non_webpack_require__: ReturnType<typeof createRequire>;
+  var __instrumented__: boolean;
 }
 
 globalThis.AsyncLocalStorage = NodeAsyncLocalStorage;

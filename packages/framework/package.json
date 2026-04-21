@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.37.0",
+    "@sentry/cli": "^3.4.0",
     "@types/babel__core": "^7.20.5",
     "@types/etag": "^1.8.4",
     "@types/mime-types": "^3.0.1",
@@ -91,6 +92,8 @@
     "@redpointgames/client-component-transforms": "workspace:*",
     "@redpointgames/server-function-transforms": "workspace:*",
     "@ryanto/esbuild-plugin-tailwind": "^0.0.3",
+    "@sentry/node": "^10.49.0",
+    "@sentry/react": "^10.49.0",
     "@tailwindcss/node": "4.1.14",
     "@tailwindcss/oxide": "4.1.14",
     "babel-plugin-react-compiler": "19.1.0-rc.3",

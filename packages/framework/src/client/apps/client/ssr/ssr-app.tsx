@@ -7,15 +7,20 @@ import { RoutingContext } from "../contexts/routing-context";
 import { InlineRSCStream } from "../components/inline-rsc-stream";
 import { RouteStackEntry, RouteStack } from "../contexts/route-stack-context";
 import { ReactDOMServerReadableStream } from "react-dom/server";
+import type { BrowserOptions } from "@sentry/react";
 
 export function SSRApp({
   url,
   getRouteStack,
   rscStreamReader,
+  sentryTrace,
+  sentryBaggage,
 }: {
   url: URL;
   getRouteStack: () => Promise<RouteStackEntry[]>;
   rscStreamReader: ReadableStreamDefaultReader<Uint8Array>;
+  sentryTrace: string | undefined;
+  sentryBaggage: string | undefined;
 }) {
   let navigate = () => {
     throw new Error("Cannot call navigate during SSR");
@@ -34,6 +39,9 @@ export function SSRApp({
 
   return (
     <>
+      {sentryTrace ? <meta name="sentry-trace" content={sentryTrace} /> : null}
+      {sentryBaggage ? <meta name="baggage" content={sentryBaggage} /> : null}
+
       <RoutingContext
         version={1}
         path={url.pathname}
@@ -60,13 +68,37 @@ type RenderOptions = {
   urlString: string;
   bootstrapUrl: string;
   signal: AbortSignal;
+  sentryBrowserOptions: BrowserOptions | undefined;
+  captureException: (error: unknown) => boolean;
+  sentryTrace: string | undefined;
+  sentryBaggage: string | undefined;
 };
+
+function getBootstrapScript(
+  sentryBrowserOptions: BrowserOptions | undefined,
+  extraScript?: string,
+) {
+  let scripts = [];
+  if (sentryBrowserOptions) {
+    scripts.push(
+      `window.SentryConfig = ${JSON.stringify(sentryBrowserOptions)}`,
+    );
+  }
+  if (extraScript) {
+    scripts.push(extraScript);
+  }
+  return scripts.join(";");
+}
 
 export async function render({
   rscStream,
   urlString,
   bootstrapUrl,
   signal,
+  sentryBrowserOptions,
+  captureException,
+  sentryTrace,
+  sentryBaggage,
 }: RenderOptions): Promise<ReadableStream<Uint8Array>> {
   let [rscStream1, rscStream2] = rscStream.tee();
   let [formStateStream, routeStackStream] = rscStream1.tee(); // formState and route stack
@@ -118,9 +150,12 @@ export async function render({
         url,
         rscStreamReader: inlineRscStreamReader,
         getRouteStack,
+        sentryTrace,
+        sentryBaggage,
       }),
       {
         bootstrapModules: [bootstrapUrl],
+        bootstrapScriptContent: getBootstrapScript(sentryBrowserOptions),
         formState,
         onError(err: unknown) {
           if (signal.aborted) {
@@ -129,7 +164,9 @@ export async function render({
             // certain errors we know are safe for client handling
           } else if (err instanceof Error) {
             // do something useful here
-            console.error(err);
+            if (!captureException(err)) {
+              console.error(err);
+            }
           } else if (err === null) {
             // think we can ignore this case, happens when stream
             // is cancelled on the react-server side
@@ -150,6 +187,7 @@ export async function render({
     // new ssr stream that renders the client app with the rsc stream inline.
     // the rsc stream most likely has a serialized error and the client app
     // will handle that.
+    captureException(e);
     try {
       htmlStream = await renderToReadableStream(
         createElement(InlineRSCStream, {
@@ -157,9 +195,12 @@ export async function render({
         }),
         {
           bootstrapModules: [bootstrapUrl],
-          bootstrapScriptContent:
-            "if (typeof window !== 'undefined') { window.SSRDidError = true; }",
-          onError() {
+          bootstrapScriptContent: getBootstrapScript(
+            sentryBrowserOptions,
+            "window.SSRDidError = true;",
+          ),
+          onError(err: unknown) {
+            captureException(err);
             if (signal.aborted) {
               // dont care about errors if we're aborted
             } else {
@@ -175,6 +216,7 @@ export async function render({
       // at this point we just cant render. we've had two streams crash.
       // we'll throw and let the worker communicate an error back to
       // the main process.
+      captureException(e);
       throw new Error("Unable to render", { cause: e });
     }
   }

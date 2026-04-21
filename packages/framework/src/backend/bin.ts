@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import "./monkey-patch.js";
+import "./sentry-instrument.js";
 import "dotenv/config";
 import { DevelopmentBuild } from "./build/build/development.js";
 import { ProductionBuild } from "./build/build/production.js";

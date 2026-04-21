@@ -3,14 +3,23 @@ import "../ext/webpack-loaders";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { BrowserApp } from "./browser-app";
 import { Component, startTransition, StrictMode } from "react";
+import * as Sentry from "@sentry/react";
 
 declare global {
   interface Window {
     SSRDidError?: boolean;
+    SentryConfig?: Sentry.BrowserOptions;
   }
 }
 
 function main() {
+  if (window.SentryConfig) {
+    Sentry.init({
+      ...window.SentryConfig,
+      integrations: [Sentry.browserTracingIntegration()],
+    });
+  }
+
   let tree = (
     <StrictMode>
       <BrowserApp />
@@ -51,13 +60,12 @@ function onCaughtError(error: unknown, errorInfo: ErrorInfo) {
     isNotFoundError(error) ||
     isUnauthorizedError(error);
 
+  let errorBoundaryName = errorInfo.errorBoundary?.constructor.name;
+
   if (!isSafeError && process.env.NODE_ENV !== "production") {
     // Let's redisplay the normal react error message here.
     //
     // This is taken from: https://github.com/facebook/react/blob/65eec428c40d542d4d5a9c1af5c3f406aecf3440/packages/react-reconciler/src/ReactFiberErrorLogger.js#L60
-
-    // let stack = errorInfo.componentStack ?? "";
-    let errorBoundaryName = errorInfo.errorBoundary?.constructor.name;
 
     console.error(
       "%o\n\n%s",
@@ -66,6 +74,12 @@ function onCaughtError(error: unknown, errorInfo: ErrorInfo) {
         ? `The error was handled by the ${errorBoundaryName} error boundary.`
         : "The error was caught by React",
     );
+  }
+
+  // Only report here if there was no error boundary handling it,
+  // as error boundaries should call captureReactException.
+  if (!isSafeError && errorBoundaryName === undefined) {
+    Sentry.captureReactException(error, errorInfo as any);
   }
 }
 

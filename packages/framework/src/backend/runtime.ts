@@ -24,6 +24,8 @@ import { pathMatches } from "./runtime/helpers/routing.js";
 import { invariant } from "./utils/invariant.js";
 import { readStream } from "./steams/read-stream.js";
 import { combineBatch, createBatchStream } from "./steams/batch-stream.js";
+import * as Sentry from "@sentry/node";
+import { BrowserOptions } from "@sentry/react";
 
 type Build = DevelopmentBuild | ProductionBuild;
 
@@ -142,6 +144,8 @@ export class Runtime {
     let clientComponentMap = this.build.getBuilder("client").clientComponentMap;
     let streamError: unknown;
 
+    let captureException = this.captureException.bind(this);
+
     let rscStream = renderToReadableStream(data, clientComponentMap, {
       temporaryReferences: options.temporaryReferences,
       onError(err: unknown) {
@@ -160,14 +164,8 @@ export class Runtime {
         ) {
           return err.digest;
         } else if (err instanceof Error) {
-          let digest =
-            process.env.NODE_ENV === "production" ? randomUUID() : undefined;
-
-          if (digest) {
-            console.log(`Error digest: ${digest}`);
-          }
-
-          console.error(err);
+          let digest = Sentry.getActiveSpan()?.spanContext().traceId;
+          captureException(err);
           return digest;
         }
       },
@@ -419,5 +417,22 @@ export class Runtime {
         },
       });
     }
+  }
+
+  // error reporting
+
+  async captureException(error: unknown) {
+    if (Sentry.isEnabled()) {
+      console.error(
+        "Error reported to Sentry with ID: " + Sentry.captureException(error),
+      );
+    } else {
+      console.error(error);
+    }
+  }
+
+  async getSentryBrowserOptions(): Promise<BrowserOptions | undefined> {
+    let appConfig = await this.#build.getAppConfig();
+    return appConfig.sentryBrowserOptions;
   }
 }

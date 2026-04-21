@@ -6,6 +6,7 @@ import { parentPort, workerData } from "node:worker_threads";
 import { pathToFileURL } from "node:url";
 import { RenderRequest } from "./worker.js";
 import type { ReadableStream } from "node:stream/web";
+import type { BrowserOptions } from "@sentry/react";
 
 if (!parentPort) {
   throw new Error("Must be run as a worker");
@@ -21,6 +22,10 @@ let render = appModule.render;
 type PageRenderRequest = Extract<RenderRequest, { mode: "page" }> & {
   rscStream: ReadableStream<Uint8Array>;
   signal: AbortSignal;
+  sentryBrowserOptions: BrowserOptions | undefined;
+  captureException: (error: unknown) => boolean;
+  sentryTrace: string | undefined;
+  sentryBaggage: string | undefined;
 };
 
 export async function pageSSR(request: PageRenderRequest) {
@@ -30,5 +35,9 @@ export async function pageSSR(request: PageRenderRequest) {
     urlString: request.data.urlString,
     bootstrapUrl,
     signal: request.signal,
+    sentryBrowserOptions: request.sentryBrowserOptions,
+    captureException: request.captureException,
+    sentryTrace: request.sentryTrace,
+    sentryBaggage: request.sentryBaggage,
   });
 }

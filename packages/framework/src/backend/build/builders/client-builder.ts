@@ -223,7 +223,7 @@ export class ClientBuilder extends Builder {
           format: "esm",
           cleanDir: true,
 
-          sourcemap: true,
+          sourcemap: process.env.NODE_ENV === "production" ? "hidden" : true,
 
           advancedChunks: {
             groups: [

@@ -65,7 +65,7 @@ export class APIRequest {
             },
           });
         } else {
-          console.error(error);
+          this.#runtime.captureException(error);
           return new Response("Internal Server Error", { status: 500 });
         }
       },

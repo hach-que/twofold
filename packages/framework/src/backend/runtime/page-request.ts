@@ -15,6 +15,7 @@ import {
   evaluatePolicyArray,
   evaluatePolicyArrayToResponse,
 } from "./helpers/auth.js";
+import * as Sentry from "@sentry/node";
 
 export class PageRequest {
   #page: Page;
@@ -71,7 +72,7 @@ export class PageRequest {
             let { status, url } = redirectErrorInfo(error);
             return this.redirectResponse(status, url);
           } else {
-            console.error(error);
+            this.#runtime.captureException(error);
             return new Response("Internal Server Error", { status: 500 });
           }
         },
@@ -164,11 +165,16 @@ export class PageRequest {
     let rscStream = rscResponse.body;
     let url = new URL(this.#request.url);
 
+    let trace = Sentry.getTraceData();
+
     let { stream } = await this.#runtime.renderHtmlStreamFromRSCStream(
       rscStream,
       "page",
       {
         urlString: url.toString(),
+        sentryBrowserOptions: await this.#runtime.getSentryBrowserOptions(),
+        sentryTrace: trace["sentry-trace"]!,
+        sentryBaggage: trace.baggage!,
       },
     );
 

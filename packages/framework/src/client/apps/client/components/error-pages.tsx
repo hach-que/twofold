@@ -1,5 +1,6 @@
 import { Stylesheet } from "./stylesheet";
 import { ErrorViewer } from "../../errors/error-viewer";
+import * as Sentry from "@sentry/react";
 
 export function DevErrorPage({ error }: { error: unknown }) {
   return (
@@ -21,7 +22,7 @@ export function ProdErrorPage({ error }: { error: unknown }) {
     "digest" in error &&
     typeof error.digest === "string"
       ? error.digest
-      : "";
+      : (Sentry.getActiveSpan()?.spanContext().traceId ?? "");
 
   let html = `${process.env.TWOFOLD_PROD_ERROR_HTML}`
     .replace("$digest-class", digest ? "" : "hidden")

@@ -300,6 +300,19 @@ function fetchRSCPayload(path: string, options: FetchOptions = {}) {
       if (contentType === "text/x-component") {
         let payload = await createFromReadableStream(response.body, rscOptions);
         stack = payload.stack;
+
+        // we pass the digest in a header so we can re-attach the digest
+        // property when React is hiding all error information
+        let digestHeader = response.headers.get("x-twofold-error-digest");
+        if (
+          stack.length >= 1 &&
+          stack[0] !== undefined &&
+          stack[0].type === "error" &&
+          stack[0].error instanceof Error &&
+          digestHeader
+        ) {
+          (stack[0].error as any).digest = digestHeader;
+        }
       } else if (contentType === "text/x-serialized-error") {
         // i don't think this is used anymore. router now serializes errors
         // as rsc stream

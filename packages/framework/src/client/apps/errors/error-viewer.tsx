@@ -1,6 +1,7 @@
 import { ReactNode, use, useEffect } from "react";
 import StackTrace from "stacktrace-js";
 import { Suspense } from "react";
+import * as Sentry from "@sentry/react";
 
 export function ErrorRendererLoaded(props: {
   error: Error;
@@ -42,6 +43,13 @@ export function ErrorRenderer({ error }: { error: Error }) {
 }
 
 export function ErrorViewer({ error }: { error: unknown }) {
+  let digest =
+    error instanceof Error &&
+    "digest" in error &&
+    typeof error.digest === "string"
+      ? error.digest
+      : Sentry.getActiveSpan()?.spanContext().traceId;
+
   return (
     <div className="bg-red-50 h-full">
       <div className="p-6 max-w-7xl mx-auto h-full">
@@ -56,6 +64,7 @@ export function ErrorViewer({ error }: { error: unknown }) {
               <p className="text-red-500 text-xl">Unknown error</p>
             )}
           </div>
+          {digest ? <p className="mt-6">Trace ID: {digest}</p> : null}
         </div>
       </div>
 

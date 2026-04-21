@@ -20,6 +20,7 @@ import { serializeError } from "serialize-error";
 import { randomUUID } from "crypto";
 import { evaluatePolicyArray } from "./helpers/auth.js";
 import { CompiledServerAction } from "../build/rsc/compiled-server-action.js";
+import * as Sentry from "@sentry/node";
 
 type ServerManifest = Record<
   string,
@@ -207,11 +208,16 @@ export class ActionRequest {
     let rscStream = rscResponse.body;
     let url = new URL(this.#action.renderPath, this.#request.url);
 
+    let trace = Sentry.getTraceData();
+
     let { stream } = await this.#runtime.renderHtmlStreamFromRSCStream(
       rscStream,
       "page",
       {
         urlString: url.toString(),
+        sentryBrowserOptions: await this.#runtime.getSentryBrowserOptions(),
+        sentryTrace: trace["sentry-trace"]!,
+        sentryBaggage: trace.baggage!,
       },
     );
 
@@ -245,7 +251,7 @@ export class ActionRequest {
     );
     if (!authResponse.__allow) {
       if (authResponse.__error) {
-        console.error(authResponse.__error);
+        this.#runtime.captureException(authResponse.__error);
         return {
           type: "throw",
           error: authResponse.__error,
@@ -286,13 +292,13 @@ export class ActionRequest {
           ? err
           : new Error("Action threw non error", { cause: err });
 
-      if (process.env.NODE_ENV === "production" && !isSafeError) {
-        let digest = randomUUID();
-        errorObject.digest = digest;
-      }
-
       if (!isSafeError) {
-        console.error(errorObject);
+        let digest = Sentry.getActiveSpan()?.spanContext().traceId;
+        if (digest) {
+          errorObject.digest = digest;
+        }
+
+        this.#runtime.captureException(errorObject);
       }
 
       return {

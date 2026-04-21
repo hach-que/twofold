@@ -605,7 +605,8 @@ export class RSCBuilder extends Builder {
         splitting: true,
         chunkNames: "chunks/[name]-[hash]",
         metafile: true,
-        sourcemap: "linked",
+        sourcemap:
+          process.env.NODE_ENV === "production" ? "external" : "linked",
         plugins: [
           clientComponentProxyPlugin({ builder }),
           serverActionsPlugin({ builder }),
