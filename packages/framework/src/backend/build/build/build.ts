@@ -206,7 +206,8 @@ export abstract class Build {
       console.log("Uploading source maps ...");
       console.log(`Scanning: ${process.cwd()}`);
       const releaseOptions =
-        process.env.SENTRY_RELEASE !== undefined
+        process.env.SENTRY_RELEASE !== undefined &&
+        process.env.SENTRY_RELEASE.trim().length !== 0
           ? [`--release=${process.env.SENTRY_RELEASE}`]
           : [];
       await cli.sourceMaps.execute(
